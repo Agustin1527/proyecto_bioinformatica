@@ -1,0 +1,394 @@
+---
+title: "COVID-19 cytokines and the hyperactive immune response: Synergism of TNF-α and IFN-γ in triggering inflammation, tissue damage, and death"
+author: "Agustin"
+date: "8/6/2021"
+output: html_document
+---
+El trabajo está basado en un paper en el cual utilizaron microarrays de la marca Affymetrix para comparar los perfiles de transcripción de macrófagos primarios derivados de la médula ósea (BMDM) de ratones Irf1 KO y WT que habían sido estimulados en cultivo con TNF-a, IFN-g o ambas citocinas simultáneamente.
+DOI: 10.1101/2020.10.29.361048 
+
+Los archivos que contien la información de cada una las muestras en formato .CEL fueron descargadas de la página: 
+https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE160163
+
+Posteriormente fueron almacenadas en la carpeta donde se encuentra alojado el proyecto R referente a este trabajo
+
+```{r}
+library("oligo")
+
+```
+
+Se leen los archivos .CEL descargados anteriormente del NCBI
+```{r}
+Data <- list.celfiles()
+data_affy <- read.celfiles(Data)
+```
+
+Gráficos caja y bigote e histograma con los datos sin normalizar
+```{r}
+boxplot(data_affy, col=rainbow(12), las=2, ylab="Señal")
+hist(data_affy, col=rainbow(12), las=2)
+```
+
+Se normalizan los datos 
+```{r}
+rma_affy <- oligo::rma(data_affy)
+```
+
+Gráficos caja y bigote e histograma con los datos normalizados
+```{r}
+boxplot(rma_affy, col=rainbow(12), las=2, ylab="Señal")
+hist(rma_affy, col=rainbow(12), las=2)
+```
+
+
+```{r}
+expression_levels <- exprs(rma_affy)
+
+```
+
+
+```{r}
+IDs_mouse <- c("WT_sin_estimular_1", "WT_sin_estimular_2", "IRF_KO_sin_estimular_1", "IRF_KO_sin_estimular_2", "WT_TNF-a_1", "WT_TNF-a_2", "WT_IFN-g_1", "WT_IFN-g_2", "WT_TNF-a_IFN-g_1", "WT_TNF-a_IFN-g_2", "IRF_KO_TNF-a_IFN-g_1", "IRF_KO_TNF-a_IFN-g_2")
+colnames(expression_levels) <- IDs_mouse
+
+
+```
+
+Calculo el promedio de los controles y los tratamientos
+```{r}
+WT_sin_estimular <- (expression_levels[, IDs_mouse[1]] + expression_levels[, IDs_mouse[2]])/2
+IRF_KO_sin_estimular <-(expression_levels[, IDs_mouse[3]] + expression_levels[, IDs_mouse[4]])/2
+WT_TNFa <- (expression_levels[, IDs_mouse[5]] + expression_levels[, IDs_mouse[6]])/2
+WT_IFNg <- (expression_levels[, IDs_mouse[7]] + expression_levels[, IDs_mouse[8]])/2
+WT_TNFa_IFNg <-(expression_levels[, IDs_mouse[9]] + expression_levels[, IDs_mouse[10]])/2
+IRF_KO_TNFa_IFNg <- (expression_levels[, IDs_mouse[11]] + expression_levels[, IDs_mouse[12]])/2
+
+expression_average <- matrix(c(WT_sin_estimular, IRF_KO_sin_estimular, WT_TNFa, WT_IFNg, WT_TNFa_IFNg, IRF_KO_TNFa_IFNg), ncol = 6)
+
+IDs_mouse_conditions <- c("WT_sin_estimular", "IRF_KO_sin_estimular", "WT_TNFa", "WT_IFNg", "WT_TNFa_IFNg", "IRF_KO_TNFa_IFNg")
+
+colnames(expression_average) <- IDs_mouse_conditions
+row.names(expression_average) <- names(WT_sin_estimular)
+
+```
+
+
+```{r}
+library("ggplot2")
+
+X11()
+
+# Agrego el comando X11() ya que si ejecutaba la funcion ggplot sin el mismo, R crasheaba
+# y se reiniciaba. Basado en comentarios de usuarios de Ubuntu, parece ser que es un error 
+# vinculado este SO. En windows no tuve problemas, con lo cual, si se corre en otro puede 
+# que no sea necesario utilizarlo.
+```
+ 
+En este trabajo, elegí 4 comparaciones para realizar:
+* WT sin estimular vs WT con agregado de TNFa
+* WT sin estimular vs WT con agregado de IFNg
+* WT sin estimular vs WT con agregado de TNFa e IFNg
+* IRF KO estimular vs IRF KO con agregado de TNFa e IFNg
+
+Se muestran 4 gráficos de comparación de expresiones de cada uno
+```{r}
+sin_estimular_vs_TNF <- data.frame(expression_average[WT_sin_estimular],expression_average[WT_TNFa])
+ggplot(data = sin_estimular_vs_TNF, aes (x = WT_sin_estimular, y = WT_TNFa)) + geom_point()
+
+```
+
+```{r}
+sin_estimular_vs_IFN <- data.frame(expression_average[WT_sin_estimular],expression_average[WT_IFNg])
+ggplot(data = sin_estimular_vs_IFN, aes (x = WT_sin_estimular, y = WT_IFNg)) + geom_point()
+
+```
+
+
+```{r}
+sin_estimular_vs_TNF_IFN <- data.frame(expression_average[WT_sin_estimular],expression_average[WT_TNFa_IFNg])
+ggplot(data = sin_estimular_vs_TNF_IFN, aes (x = WT_sin_estimular, y = WT_TNFa_IFNg)) + geom_point()
+
+```
+
+
+```{r}
+IRF_KO_sin_estimular_vs_IRF_KO_TNFa_IFNg <- data.frame(expression_average[IRF_KO_sin_estimular],expression_average[IRF_KO_TNFa_IFNg])
+ggplot(data = IRF_KO_sin_estimular_vs_IRF_KO_TNFa_IFNg, aes (x = IRF_KO_sin_estimular, y = IRF_KO_TNFa_IFNg)) + geom_point()
+
+```
+
+"limma" (Linear Models for Microarray Data) es un paquete de Bioconductor que permite ver que genes se expresan en mayor o menor medida en un microarray
+```{r}
+library(limma)
+
+```
+
+Para determinar los genes que se expresan de forma diferencial, en primer lugar se calcula el fold-change. 
+Para esto se calcula el nivel de expresión media: se hace el promedio de las replicas  para los controles (C) y para los tratamientos, en este caso con las citoquinas (T). Usualmente para cada gen, el fold-change = T/C , pero en microarryas los datos se encuentran transformados en log2, con lo cual el fold-change = T - C.
+Luego se debe fijar un umbral para ver que genes se expresan mas y cuales menos.
+* 1, 2 y 3 (para genes que se expresan x2, x4 y x8 respecto del control, respectivamente)
+* -1, -2 y -3 (para genes que se expresan 1/2, 1/4 y 1/8 respecto del control, respectivamente)
+Además, para eliminar los datos provenientes de ruidos de fondo, se tiene en consideracion aquellos genes que posean un qvalue < 0.01. 
+```{r}
+```
+
+Primeramente, se genera una matriz asignandole un numero entero (1) a cada una de las muestras incluidas las replicas.
+```{r}
+gene_express <- model.matrix(~ -1+factor(c(1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6)))
+colnames(gene_express) <- IDs_mouse_conditions
+```
+
+Tratamiento - control
+* Comparacion = 0; la condicion no actua
+* Comparacion = -1; la condicion es el control
+* Comparacion = 1; la condicion es el tratamiento
+```{r}
+matriz_de_comparacion <- makeContrasts(WT_TNFa-WT_sin_estimular,
+                                       WT_IFNg-WT_sin_estimular,
+                                       WT_TNFa_IFNg-WT_sin_estimular,
+                                       IRF_KO_TNFa_IFNg-IRF_KO_sin_estimular, 
+                                       levels = IDs_mouse_conditions) 
+```
+```{r}
+```
+
+Se calcula el fold-change para cada gen en cada una de las comparaciones especificadas
+```{r}
+regresion_lineal <- lmFit(expression_levels, gene_express)
+
+comparaciones_fit <- contrasts.fit(regresion_lineal ,matriz_de_comparacion)
+comparaciones_resultado <- eBayes(comparaciones_fit)
+```
+
+
+```{r}
+library(clariomsmousetranscriptcluster.db)
+
+library(annaffy)
+
+```
+
+Finalmente, se realiza la visualizacion grafica y la obtencion de los genes que se expresan mas y menos en cada condicion
+```{r}
+```
+
+1) WT sin estimular vs WT con TNFa
+```{r}
+WT_TNFa_vs_WT_sin_estimular <- topTable(comparaciones_resultado, number = dim(expression_levels)[1], coef = 1)
+
+
+fold_change_WT_TNFa_vs_WT_sin_estimular <- WT_TNFa_vs_WT_sin_estimular[["logFC"]]
+qvalue_WT_TNFa_vs_WT_sin_estimular <- WT_TNFa_vs_WT_sin_estimular[["adj.P.Val"]]
+IDs_WT_TNFa_vs_WT_sin_estimular <- rownames(WT_TNFa_vs_WT_sin_estimular)
+
+
+genes_sobrexpresados_WT_con_TNF <- IDs_WT_TNFa_vs_WT_sin_estimular[((fold_change_WT_TNFa_vs_WT_sin_estimular > 1) & qvalue_WT_TNFa_vs_WT_sin_estimular < 0.01)]
+genes_reprimidos_WT_con_TNF <- IDs_WT_TNFa_vs_WT_sin_estimular[((fold_change_WT_TNFa_vs_WT_sin_estimular < -1) & qvalue_WT_TNFa_vs_WT_sin_estimular < 0.01)]
+
+
+ID_mayor_gen_expresado_WT_TNF <- IDs_WT_TNFa_vs_WT_sin_estimular[((fold_change_WT_TNFa_vs_WT_sin_estimular == max(fold_change_WT_TNFa_vs_WT_sin_estimular)) & qvalue_WT_TNFa_vs_WT_sin_estimular < 0.01)]
+ID_mayor_gen_expresado_WT_TNF
+
+
+ID_menor_gen_expresado_WT_TNF <- IDs_WT_TNFa_vs_WT_sin_estimular[((fold_change_WT_TNFa_vs_WT_sin_estimular == min(fold_change_WT_TNFa_vs_WT_sin_estimular)) & qvalue_WT_TNFa_vs_WT_sin_estimular < 0.01)]
+ID_menor_gen_expresado_WT_TNF
+
+
+
+# Con este comando se obtienen datos referentes al gen mayor expresado WT con TNF 
+row_WT_TNF_act <- match(ID_mayor_gen_expresado_WT_TNF, IDs_WT_TNFa_vs_WT_sin_estimular)
+activated_genes_WT_TNF <- aafTableAnn(genes_sobrexpresados_WT_con_TNF, "clariomsmousetranscriptcluster.db", aaf.handler())
+activated_genes_WT_TNF[row_WT_TNF_act]
+
+# Para mas informacion sobre los genes activados en esta situacion:
+saveHTML(activated_genes_WT_TNF, file="genes sobrexpresados WT con TNF.html")
+
+# Con este comando se obtienen datos referentes al gen mayor expresado WT sin estimular
+row_WT_TNF_rep <- match(ID_mayor_gen_expresado_WT_TNF, IDs_WT_TNFa_vs_WT_sin_estimular)
+repressed_genes_WT_TNF <- aafTableAnn(genes_reprimidos_WT_con_TNF, "clariomsmousetranscriptcluster.db", aaf.handler())
+repressed_genes_WT_TNF[row_WT_TNF_rep]
+
+# Para mas informacion sobre los genes activados en esta situacion:
+saveHTML(repressed_genes_WT_TNF, file="genes reprimidos WT con TNF.html")
+
+# Grafica
+plot(WT_sin_estimular,WT_TNFa ,pch=19,cex=0.3,col="grey",xlab="WT sin estimular",ylab="WT con TNF")
+
+
+points(WT_sin_estimular[genes_sobrexpresados_WT_con_TNF],WT_TNFa[genes_sobrexpresados_WT_con_TNF],pch=19,cex=0.3,col="red")
+mayor_WT_TNF_symbol <- activated_genes_WT_TNF[row_WT_TNF_act]$Symbol[[1]][1]
+text(WT_sin_estimular[ID_mayor_gen_expresado_WT_TNF]+ 0.1,WT_TNFa[ID_mayor_gen_expresado_WT_TNF]+0.3,mayor_WT_TNF_symbol, col="black", cex=0.7)
+
+points(WT_sin_estimular[genes_reprimidos_WT_con_TNF],WT_TNFa[genes_reprimidos_WT_con_TNF],pch=19,cex=0.3, col="blue")
+menor_WT_TNF_symbol <- repressed_genes_WT_TNF[row_WT_TNF_rep]$Symbol[[1]][1]
+text(WT_sin_estimular[ID_menor_gen_expresado_WT_TNF]+ 0.1,WT_TNFa[ID_menor_gen_expresado_WT_TNF]+0.3,menor_WT_TNF_symbol, col="black", cex=0.7)
+
+```
+
+2) WT sin estimular vs WT con IFNg
+```{r}
+WT_IFNg_vs_WT_sin_estimular <- topTable(comparaciones_resultado, number = dim(expression_levels)[1], coef = 2)
+
+
+fold_change_WT_IFNg_vs_WT_sin_estimular <- WT_IFNg_vs_WT_sin_estimular[["logFC"]]
+qvalue_WT_IFNg_vs_WT_sin_estimular <- WT_IFNg_vs_WT_sin_estimular[["adj.P.Val"]]
+IDs_WT_WT_IFNg_vs_WT_sin_estimular <- rownames(WT_IFNg_vs_WT_sin_estimular)
+
+
+genes_sobrexpresados_WT_con_IFN <- IDs_WT_WT_IFNg_vs_WT_sin_estimular[((fold_change_WT_IFNg_vs_WT_sin_estimular > 1) & qvalue_WT_IFNg_vs_WT_sin_estimular < 0.01)]
+genes_reprimidos_WT_con_IFN <- IDs_WT_WT_IFNg_vs_WT_sin_estimular[((fold_change_WT_IFNg_vs_WT_sin_estimular < -1) & qvalue_WT_IFNg_vs_WT_sin_estimular < 0.01)]
+
+
+ID_mayor_gen_expresado_WT_IFN <- IDs_WT_WT_IFNg_vs_WT_sin_estimular[((fold_change_WT_IFNg_vs_WT_sin_estimular == max(fold_change_WT_IFNg_vs_WT_sin_estimular)) & qvalue_WT_IFNg_vs_WT_sin_estimular < 0.01)]
+ID_mayor_gen_expresado_WT_IFN
+
+
+ID_menor_gen_expresado_WT_IFN <- IDs_WT_WT_IFNg_vs_WT_sin_estimular[((fold_change_WT_IFNg_vs_WT_sin_estimular == min(fold_change_WT_IFNg_vs_WT_sin_estimular)) & qvalue_WT_IFNg_vs_WT_sin_estimular < 0.01)]
+ID_menor_gen_expresado_WT_IFN
+
+
+
+# Con este comando se obtienen datos referentes al gen mayor expresado WT con IFN 
+row_WT_IFN_act <- match(ID_mayor_gen_expresado_WT_IFN, IDs_WT_WT_IFNg_vs_WT_sin_estimular)
+activated_genes_WT_IFN <- aafTableAnn(genes_sobrexpresados_WT_con_IFN, "clariomsmousetranscriptcluster.db", aaf.handler())
+activated_genes_WT_IFN[row_WT_IFN_act]
+
+# Para mas informacion sobre los genes activados en esta situacion:
+saveHTML(activated_genes_WT_IFN, file="genes sobrexpresados WT con IFN.html") 
+
+
+# Con este comando se obtienen datos referentes al gen mayor expresado WT sin estimular
+row_WT_IFN_rep <- match(ID_mayor_gen_expresado_WT_IFN, IDs_WT_WT_IFNg_vs_WT_sin_estimular)
+repressed_genes_WT_IFN <- aafTableAnn(genes_reprimidos_WT_con_IFN, "clariomsmousetranscriptcluster.db", aaf.handler())
+repressed_genes_WT_IFN[row_WT_TNF_rep]
+
+# Para mas informacion sobre los genes reprimidos en esta situacion:
+saveHTML(repressed_genes_WT_IFN, file="genes reprimidos WT con IFN.html") 
+
+
+# Grafica
+plot(WT_sin_estimular,WT_IFNg ,pch=19,cex=0.3,col="grey",xlab="WT sin estimular",ylab="WT con IFN")
+
+points(WT_sin_estimular[genes_sobrexpresados_WT_con_IFN],WT_IFNg[genes_sobrexpresados_WT_con_IFN],pch=19,cex=0.3,col="red")
+mayor_WT_IFN_symbol <- activated_genes_WT_IFN[row_WT_IFN_act]$Symbol[[1]][1]
+text(WT_sin_estimular[ID_mayor_gen_expresado_WT_IFN]+ 0.1,WT_IFNg[ID_mayor_gen_expresado_WT_IFN]+0.3,mayor_WT_IFN_symbol, col="black", cex=0.7)
+
+
+points(WT_sin_estimular[genes_reprimidos_WT_con_IFN],WT_IFNg[genes_reprimidos_WT_con_IFN],pch=19,cex=0.3, col="blue")
+menor_WT_IFN_symbol <- repressed_genes_WT_IFN[row_WT_IFN_rep]$Symbol[[1]][1]
+text(WT_sin_estimular[ID_menor_gen_expresado_WT_IFN]+ 0.1,WT_IFNg[ID_menor_gen_expresado_WT_IFN]+0.3,menor_WT_IFN_symbol, col="black", cex=0.7)
+
+```
+
+3) WT sin estimular vs WT con TNFa y IFNg
+```{r}
+WT_TNFa_IFNg_vs_WT_sin_estimular <- topTable(comparaciones_resultado, number = dim(expression_levels)[1], coef = 3)
+
+
+fold_change_WT_TNFa_IFNg_vs_WT_sin_estimular <- WT_TNFa_IFNg_vs_WT_sin_estimular[["logFC"]]
+qvalue_WT_TNFa_IFNg_vs_WT_sin_estimular <- WT_TNFa_IFNg_vs_WT_sin_estimular[["adj.P.Val"]]
+IDs_WT_TNFa_IFNg_vs_WT_sin_estimular <- rownames(WT_TNFa_IFNg_vs_WT_sin_estimular)
+
+
+genes_sobrexpresados_WT_con_IFN_TNF <- IDs_WT_TNFa_IFNg_vs_WT_sin_estimular[((fold_change_WT_TNFa_IFNg_vs_WT_sin_estimular > 1) & qvalue_WT_TNFa_IFNg_vs_WT_sin_estimular < 0.01)]
+genes_reprimidos_WT_con_IFN_TNF <- IDs_WT_TNFa_IFNg_vs_WT_sin_estimular[((fold_change_WT_TNFa_IFNg_vs_WT_sin_estimular < -1) & qvalue_WT_TNFa_IFNg_vs_WT_sin_estimular < 0.01)]
+
+
+ID_mayor_gen_expresado_WT_IFN_TNF <- IDs_WT_TNFa_IFNg_vs_WT_sin_estimular[((fold_change_WT_TNFa_IFNg_vs_WT_sin_estimular == max(fold_change_WT_TNFa_IFNg_vs_WT_sin_estimular)) & qvalue_WT_TNFa_IFNg_vs_WT_sin_estimular < 0.01)]
+ID_mayor_gen_expresado_WT_IFN_TNF
+
+
+ID_menor_gen_expresado_WT_IFN_TNF <- IDs_WT_TNFa_IFNg_vs_WT_sin_estimular[((fold_change_WT_TNFa_IFNg_vs_WT_sin_estimular == min(fold_change_WT_TNFa_IFNg_vs_WT_sin_estimular)) & qvalue_WT_TNFa_IFNg_vs_WT_sin_estimular < 0.01)]
+ID_menor_gen_expresado_WT_IFN_TNF
+
+
+
+# Con este comando se obtienen datos referentes al gen mayor expresado WT con IFN 
+row_WT_IFN_TNF_act <- match(ID_mayor_gen_expresado_WT_IFN_TNF, IDs_WT_TNFa_IFNg_vs_WT_sin_estimular)
+activated_genes_WT_IFN_TNF <- aafTableAnn(genes_sobrexpresados_WT_con_IFN_TNF, "clariomsmousetranscriptcluster.db", aaf.handler())
+activated_genes_WT_IFN[row_WT_IFN_TNF_act]
+
+# Para mas informacion sobre los genes activados en esta situacion:
+saveHTML(activated_genes_WT_IFN_TNF, file="genes sobrexpresados WT con IFN y TNF.html") 
+
+
+# Con este comando se obtienen datos referentes al gen mayor expresado WT sin estimular
+row_WT_IFN_TNF_rep <- match(ID_mayor_gen_expresado_WT_IFN_TNF, IDs_WT_TNFa_IFNg_vs_WT_sin_estimular)
+repressed_genes_WT_IFN_TNF <- aafTableAnn(genes_reprimidos_WT_con_IFN_TNF, "clariomsmousetranscriptcluster.db", aaf.handler())
+repressed_genes_WT_IFN_TNF[row_WT_TNF_rep]
+
+# Para mas informacion sobre los genes reprimidos en esta situacion:
+saveHTML(repressed_genes_WT_IFN_TNF, file="genes reprimidos WT con IFN y TNF.html") 
+
+
+# Grafica
+plot(WT_sin_estimular,WT_TNFa_IFNg ,pch=19,cex=0.3,col="grey",xlab="WT sin estimular",ylab="WT con IFN y TNF")
+
+points(WT_sin_estimular[genes_sobrexpresados_WT_con_IFN_TNF],WT_TNFa_IFNg[genes_sobrexpresados_WT_con_IFN_TNF],pch=19,cex=0.3,col="red")
+mayor_WT_TNFa_IFNg_symbol <- activated_genes_WT_IFN_TNF[row_WT_IFN_TNF_act]$Symbol[[1]][1]
+text(WT_sin_estimular[ID_mayor_gen_expresado_WT_IFN_TNF]+ 0.1,WT_TNFa_IFNg[ID_mayor_gen_expresado_WT_IFN_TNF]+0.3,mayor_WT_TNFa_IFNg_symbol, col="black", cex=0.7)
+
+
+points(WT_sin_estimular[genes_reprimidos_WT_con_IFN_TNF],WT_TNFa_IFNg[genes_reprimidos_WT_con_IFN_TNF],pch=19,cex=0.3,col="blue")
+menor_WT_TNFa_IFNg_symbol <- repressed_genes_WT_IFN_TNF[row_WT_IFN_TNF_rep]$Symbol[[1]][1]
+text(WT_sin_estimular[ID_menor_gen_expresado_WT_IFN_TNF]+ 0.1,WT_TNFa_IFNg[ID_menor_gen_expresado_WT_IFN]+0.3,menor_WT_TNFa_IFNg_symbol, col="black", cex=0.7)
+
+```
+
+4) KO IRF sin estimular vs KO IRF con TNF y IFNg
+```{r}
+IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular <- topTable(comparaciones_resultado, number = dim(expression_levels)[1], coef = 4)
+
+
+fold_change_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular <- IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular[["logFC"]]
+qvalue_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular <- IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular[["adj.P.Val"]]
+IDs_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular <- rownames(IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular)
+
+
+genes_sobrexpresados_IRF_con_IFN_TNF <- IDs_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular[((fold_change_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular > 1) & qvalue_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular < 0.01)]
+genes_reprimidos_IRF_con_IFN_TNF <- IDs_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular[((fold_change_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular < -1) & qvalue_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular < 0.01)]
+
+
+ID_mayor_gen_expresado_IRF_con_IFN_TNF <- IDs_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular[((fold_change_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular == max(fold_change_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular)) & qvalue_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular < 0.01)]
+ID_mayor_gen_expresado_IRF_con_IFN_TNF
+
+
+ID_menor_gen_expresado_IRF_con_IFN_TNF<- IDs_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular[((fold_change_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular == min(fold_change_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular)) & qvalue_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular < 0.01)]
+ID_menor_gen_expresado_IRF_con_IFN_TNF
+
+
+
+# Con este comando se obtienen datos referentes al gen mayor expresado WT con IFN 
+row_IRF_con_IFN_TNF_act <- match(ID_mayor_gen_expresado_IRF_con_IFN_TNF, IDs_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular)
+activated_genes_IRF_con_IFN_TNF<- aafTableAnn(genes_sobrexpresados_IRF_con_IFN_TNF, "clariomsmousetranscriptcluster.db", aaf.handler())
+activated_genes_IRF_con_IFN_TNF[row_IRF_con_IFN_TNF_act]
+
+# Para mas informacion sobre los genes activados en esta situacion:
+saveHTML(activated_genes_IRF_con_IFN_TNF, file="genes sobrexpresados IRF con IFN y TNF.html") 
+
+
+# Con este comando se obtienen datos referentes al gen mayor expresado WT sin estimular
+row_IRF_con_IFN_TNF_rep <-  match(ID_mayor_gen_expresado_IRF_con_IFN_TNF, IDs_IRF_KO_TNFa_IFNg_vs_IRF_KO_sin_estimular)
+repressed_genes_IRF_con_IFN_TNF<- aafTableAnn(genes_reprimidos_IRF_con_IFN_TNF, "clariomsmousetranscriptcluster.db", aaf.handler())
+repressed_genes_IRF_con_IFN_TNF[row_IRF_con_IFN_TNF_rep]
+
+# Para mas informacion sobre los genes reprimidos en esta situacion:
+saveHTML(repressed_genes_WT_IFN, file="genes reprimidos IRF con IFN y TNF.html") 
+
+
+# Grafica
+plot(IRF_KO_sin_estimular,IRF_KO_TNFa_IFNg ,pch=19,cex=0.3,col="grey",xlab="IRF KO sin estimular",ylab="IRF KO con IFN y TNF")
+
+points(IRF_KO_sin_estimular[genes_sobrexpresados_IRF_con_IFN_TNF],IRF_KO_TNFa_IFNg[genes_sobrexpresados_IRF_con_IFN_TNF],pch=19,cex=0.3,col="red")
+mayor_IRF_IFN_TNF_symbol <- activated_genes_IRF_con_IFN_TNF[row_IRF_con_IFN_TNF_act]$Symbol[[1]][1]
+text(IRF_KO_sin_estimular[ID_mayor_gen_expresado_IRF_con_IFN_TNF]+ 0.1,IRF_KO_TNFa_IFNg[ID_mayor_gen_expresado_IRF_con_IFN_TNF]+0.3,mayor_IRF_IFN_TNF_symbol, col="black", cex=0.7)
+
+
+points(IRF_KO_sin_estimular[genes_reprimidos_IRF_con_IFN_TNF],IRF_KO_TNFa_IFNg[genes_reprimidos_IRF_con_IFN_TNF],pch=19,cex=0.3,col="blue")
+menor_IRF_IFN_TNF_symbol <- repressed_genes_IRF_con_IFN_TNF[row_IRF_con_IFN_TNF_rep]$Symbol[[1]][1]
+text(IRF_KO_sin_estimular[ID_menor_gen_expresado_IRF_con_IFN_TNF]+ 0.1,IRF_KO_TNFa_IFNg[ID_menor_gen_expresado_IRF_con_IFN_TNF]+0.3,menor_IRF_IFN_TNF_symbol, col="black", cex=0.7)
+
+```
+
+
+
